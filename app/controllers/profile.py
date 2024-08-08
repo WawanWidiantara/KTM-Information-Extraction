@@ -54,21 +54,24 @@ async def ocr_extract(image: Image, image_url: str):
     pp_expired_lines = preprocess_text(pp_expired_text)
     expired = pp_expired_lines[1]
 
+    dob = personal_info_lines[5].split()
+    dob = ' '.join(dob[-3:])
+
     locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
-    try:
-        pp_expired = datetime.strptime(expired, '%d %B %Y').date()
-    except ValueError:
-        pp_expired = None
+    pp_expired = datetime.strptime(expired, '%d %B %Y').date()
+
+    locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
+    dob = datetime.strptime(dob, '%d %B %Y').date()
 
     data = {
         "name": personal_info_lines[0].split('NAMA ')[1],
-        "npm": int(personal_info_lines[1].split('NPM ')[1]),
+        "npm": personal_info_lines[1].split('NPM ')[1],
         "faculty": personal_info_lines[2].split('FAKULTAS ')[1],
         "study_program": personal_info_lines[3].split('PROGRAM STUDI ')[1],
         "program": personal_info_lines[4].split('PROGRAM ')[1],
-        "dob": personal_info_lines[5].split('TTL ')[1],
+        "dob": dob,
         "address": address,
-        "image": image_url,
+        "ktm_image_url": image_url,
         "expired_at": pp_expired,
     }
 
