@@ -34,8 +34,5 @@ if settings.BACKEND_CORS_ORIGINS:
 # Mount the media directory to serve static files
 app.mount("/media", StaticFiles(directory="app/media"), name="media")
 
-@app.get("/")
-def read_root():
-    return {"App": "KTM Information Extraction App"}
-
+# Include the routers
 app.include_router(profile.router)
