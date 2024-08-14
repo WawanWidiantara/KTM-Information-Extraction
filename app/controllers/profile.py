@@ -9,8 +9,13 @@ from datetime import datetime
 from PIL import Image
 
 def preprocess_image(image):
+    # rezise the image width=984 and height=699
+    image = image.resize((984, 699))
+
+    print(image.size)
+
     personal_info_config = {
-        "left": 260,
+        "left": 240,
         "right": 850,
         "top": 200,
         "bottom": 625,
@@ -28,6 +33,13 @@ def preprocess_image(image):
     pp_expired = image.crop((pp_expired_config["left"], pp_expired_config["top"], pp_expired_config["right"], pp_expired_config["bottom"]))
     return personal_info, pp_expired
 
+def clean_text(text):
+    # Cleaning the text
+    text = re.split(r'Kartu Mahasiswa Elektronik', text)[0]
+    text = re.sub(r'.*Nama\s*:', 'Nama :', text, flags=re.DOTALL)
+    text = re.sub(r'[_—\-]+|Berlaku s/d', ' ', text).strip()
+    return text
+
 def preprocess_text(text):
     lines = text.split("\n")
     lines = [line for line in lines if len(line) > 0]
@@ -37,42 +49,70 @@ def preprocess_text(text):
     lines = [line.upper() for line in lines]
     return lines
 
+def preprocess_text(text):
+    text = clean_text(text)
+    # Regular expressions to capture the required data
+    name_re = r"Nama\s*:\s*\|?(.*)"
+    npm_re = r"NPM\s*:\s*(\d+)"
+    faculty_re = r"Fakultas\s*:\s*(.*)"
+    study_program_re = r"Program Studi\s*:\s*(.*)"
+    program_re = r"Program\s*:\s*(.*)"
+    date_re = r"\d{1,2}\s+\w+\s+\d{4}" 
+    address_re = r"Alamat\s*:\s*(.*)"
+
+    # Extracting the data
+    name = re.search(name_re, text).group(1).strip()
+    npm = re.search(npm_re, text).group(1).strip()
+    faculty = re.search(faculty_re, text).group(1).strip()
+    study_program = re.search(study_program_re, text).group(1).strip()
+    program = re.search(program_re, text).group(1).strip()
+
+    # Extract both dates and address
+    dates = re.findall(date_re, text)
+    dob = dates[0].strip()
+    expiry_date = dates[1].strip()
+    text = re.sub(expiry_date, '', text).strip()
+
+    address = re.search(address_re, text, re.DOTALL).group(1).strip()
+    address = re.sub(r'\s+', ' ', address)
+
+    # Helper function for parsing dates
+    def parse_date(date_str):
+        for loc in ['en_US.UTF-8', 'id_ID.UTF-8']:
+            try:
+                locale.setlocale(locale.LC_TIME, loc)
+                return datetime.strptime(date_str, "%d %B %Y").date()
+            except ValueError:
+                continue
+        raise ValueError("Date format not recognized")
+    
+    # Converting dates
+    dob_converted = parse_date(dob)
+    expiry_date_converted = parse_date(expiry_date)
+
+    # Constructing the result dictionary
+    result = {
+        "name": name,
+        "npm": npm,
+        "faculty": faculty,
+        "study_program": study_program,
+        "program": program,
+        "dob": dob_converted.isoformat(),
+        "address": address,
+        "ktm_image_url": "",
+        "expired_at": expiry_date_converted.isoformat(),
+        "created_at": datetime.now().isoformat()
+    }
+    return result
+
 async def ocr_extract(image: Image, image_url: str):
     config = '--psm 4 --oem 3'
 
     try:
-        personal_info, pp_expired = preprocess_image(image)
-        personal_info_text = pytesseract.image_to_string(personal_info, config=config)
-        personal_info_lines = preprocess_text(personal_info_text)
-        address_line = personal_info_lines[6:]
-        address_line[0] = address_line[0].split('ALAMAT ')[1]
-        address = ' '.join(address_line)
+        text = pytesseract.image_to_string(image, config=config)
+        ocr_extract = preprocess_text(text)
+        ocr_extract["ktm_image_url"] = image_url
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid KTM file")
-
-    pp_expired_text = pytesseract.image_to_string(pp_expired, config=config)
-    pp_expired_lines = preprocess_text(pp_expired_text)
-    expired = pp_expired_lines[1]
-
-    dob = personal_info_lines[5].split()
-    dob = ' '.join(dob[-3:])
-
-    locale.setlocale(locale.LC_TIME, 'id_ID.UTF-8')
-    pp_expired = datetime.strptime(expired, '%d %B %Y').date()
-
-    locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
-    dob = datetime.strptime(dob, '%d %B %Y').date()
-
-    data = {
-        "name": personal_info_lines[0].split('NAMA ')[1],
-        "npm": personal_info_lines[1].split('NPM ')[1],
-        "faculty": personal_info_lines[2].split('FAKULTAS ')[1],
-        "study_program": personal_info_lines[3].split('PROGRAM STUDI ')[1],
-        "program": personal_info_lines[4].split('PROGRAM ')[1],
-        "dob": dob,
-        "address": address,
-        "ktm_image_url": image_url,
-        "expired_at": pp_expired,
-    }
-
-    return Profile(**data)
+    
+    return Profile(**ocr_extract)
