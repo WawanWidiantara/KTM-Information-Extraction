@@ -7,10 +7,10 @@ import pytesseract
 import os
 
 # Set the path to the Tesseract executable
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # Make sure media directory exists
-media_directory = os.path.join(os.path.dirname(__file__), 'media')
+media_directory = os.path.join(os.path.dirname(__file__), "media")
 os.makedirs(media_directory, exist_ok=True)
 
 app = FastAPI(
