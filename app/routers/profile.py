@@ -12,6 +12,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+
 @router.post("/extract")
 async def extract_profile(
     request: Request,
@@ -21,11 +22,13 @@ async def extract_profile(
     try:
         image = Image.open(io.BytesIO(image.file.read()))
     except UnidentifiedImageError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
-    media_directory = os.path.join(os.path.dirname(__file__), '..', 'media')
+
+    media_directory = os.path.join(os.path.dirname(__file__), "..", "media")
 
     # Save the uploaded file
     filename = f"{uuid.uuid4()}.{file_ext}"

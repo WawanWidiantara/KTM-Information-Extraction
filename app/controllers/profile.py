@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 from PIL import Image
 
+
 def preprocess_image(image):
     # rezise the image width=984 and height=699
     image = image.resize((984, 699))
@@ -26,28 +27,45 @@ def preprocess_image(image):
         "right": 275,
         "top": 200,
         "bottom": 650,
-    }    
+    }
 
-    personal_info = image.crop((personal_info_config["left"], personal_info_config["top"], personal_info_config["right"], personal_info_config["bottom"]))
+    personal_info = image.crop(
+        (
+            personal_info_config["left"],
+            personal_info_config["top"],
+            personal_info_config["right"],
+            personal_info_config["bottom"],
+        )
+    )
 
-    pp_expired = image.crop((pp_expired_config["left"], pp_expired_config["top"], pp_expired_config["right"], pp_expired_config["bottom"]))
+    pp_expired = image.crop(
+        (
+            pp_expired_config["left"],
+            pp_expired_config["top"],
+            pp_expired_config["right"],
+            pp_expired_config["bottom"],
+        )
+    )
     return personal_info, pp_expired
+
 
 def clean_text(text):
     # Cleaning the text
-    text = re.split(r'Kartu Mahasiswa Elektronik', text)[0]
-    text = re.sub(r'.*Nama\s*:', 'Nama :', text, flags=re.DOTALL)
-    text = re.sub(r'[_—\-]+|Berlaku s/d', ' ', text).strip()
+    text = re.split(r"Kartu Mahasiswa Elektronik", text)[0]
+    text = re.sub(r".*Nama\s*:", "Nama :", text, flags=re.DOTALL)
+    text = re.sub(r"[_—\-]+|Berlaku s/d", " ", text).strip()
     return text
+
 
 def preprocess_text(text):
     lines = text.split("\n")
     lines = [line for line in lines if len(line) > 0]
-    lines = [re.sub(r'\W', ' ', line) for line in lines]
+    lines = [re.sub(r"\W", " ", line) for line in lines]
     lines = [line.strip() for line in lines]
-    lines = [re.sub(r' +', ' ', line) for line in lines]
+    lines = [re.sub(r" +", " ", line) for line in lines]
     lines = [line.upper() for line in lines]
     return lines
+
 
 def preprocess_text(text):
     text = clean_text(text)
@@ -57,7 +75,7 @@ def preprocess_text(text):
     faculty_re = r"Fakultas\s*:\s*(.*)"
     study_program_re = r"Program Studi\s*:\s*(.*)"
     program_re = r"Program\s*:\s*(.*)"
-    date_re = r"\d{1,2}\s+\w+\s+\d{4}" 
+    date_re = r"\d{1,2}\s+\w+\s+\d{4}"
     address_re = r"Alamat\s*:\s*(.*)"
 
     # Extracting the data
@@ -71,21 +89,21 @@ def preprocess_text(text):
     dates = re.findall(date_re, text)
     dob = dates[0].strip()
     expiry_date = dates[1].strip()
-    text = re.sub(expiry_date, '', text).strip()
+    text = re.sub(expiry_date, "", text).strip()
 
     address = re.search(address_re, text, re.DOTALL).group(1).strip()
-    address = re.sub(r'\s+', ' ', address)
+    address = re.sub(r"\s+", " ", address)
 
     # Helper function for parsing dates
     def parse_date(date_str):
-        for loc in ['en_US.UTF-8', 'id_ID.UTF-8']:
+        for loc in ["en_US.UTF-8", "id_ID.UTF-8"]:
             try:
                 locale.setlocale(locale.LC_TIME, loc)
                 return datetime.strptime(date_str, "%d %B %Y").date()
             except ValueError:
                 continue
         raise ValueError("Date format not recognized")
-    
+
     # Converting dates
     dob_converted = parse_date(dob)
     expiry_date_converted = parse_date(expiry_date)
@@ -101,18 +119,20 @@ def preprocess_text(text):
         "address": address,
         "ktm_image_url": "",
         "expired_at": expiry_date_converted.isoformat(),
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
     }
     return result
 
+
 async def ocr_extract(image: Image, image_url: str):
-    config = '--psm 4 --oem 3'
+    config = "--psm 4 --oem 3"
 
     try:
+        print("Extracting text from image")
         text = pytesseract.image_to_string(image, config=config)
         ocr_extract = preprocess_text(text)
         ocr_extract["ktm_image_url"] = image_url
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid KTM file")
-    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     return Profile(**ocr_extract)
